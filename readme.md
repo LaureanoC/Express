@@ -14,6 +14,10 @@
   - [Sanitizar la entrada de datos](#sanitizar-la-entrada-de-datos)
   - [Delete](#delete)
   - [URL que no existe](#url-que-no-existe)
+- [03. Express MVC](#03-express-mvc)
+  - [Repository](#repository)
+  - [Controller y routes](#controller-y-routes)
+- [MikroORM](#mikroorm)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -895,11 +899,94 @@ function remove(req: Request, res: Response) {
 
 export { sanitizeCharacterInput, findAll, findOne, add, update, remove }
 ```
+# Links
+
+## Docker
+
+- [install docker](https://docs.docker.com/get-docker/)
+- [percona server mongodb](https://hub.docker.com/r/percona/percona-server-mongodb/)
+
+## MongoDB
+
+- [mongodb](https://www.mongodb.com/)
+- [mongodb altlas](https://www.mongodb.com/es/atlas)
+- [mongodb comunity server](https://www.mongodb.com/try/download/community)
+- [mongodb shell](https://www.mongodb.com/products/tools/shell)
+- [mongodb for vs code](https://www.mongodb.com/es/products/tools/vs-code)
+- [mongodb compass](https://www.mongodb.com/products/tools/compass)
+- [mongodb courses](https://learn.mongodb.com/catalog)
+
+## mysql/percona-server
+
+- [percona server 8](https://docs.percona.com/percona-server/8.0/index.html)
+- [mysql 8](https://dev.mysql.com/downloads/mysql/)
+- [mysql workbench](https://dev.mysql.com/downloads/workbench/)
+- [mysql shell for vs code](https://marketplace.visualstudio.com/items?itemName=Oracle.mysql-shell-for-vs-code)
+- [canal de base de datos utn - sql playlist](https://youtube.com/playlist?list=PLKZTJP_-zNEJOZhAHTH17D2fJTjLRiSK8&si=xzwAUY3AgDQQAd4T)
+
+# Commands
+
+## mongodb-docker
+
+docker run --name mongodb-dsw -v /home/adrian/docker-volumes/percona-mongodb-dsw:/data/db -p 27017:27017 -d percona/percona-server-mongodb:latest
+
+## percona-server-8-docker
+
+docker run --name ps8-dsw-h4g \
+ -v /home/laureano/docker-volumes/ps8-dsw-h4g:/var/lib/mysql \
+ -e MYSQL_ROOT_HOST='%' \
+ -e MYSQL_ALLOW_EMPTY_PASSWORD="yes" \
+ -e MYSQL_PASSWORD="dsw" \
+ -e MYSQL_USER="dsw" \
+ -e MYSQL_DATABASE='heroclash4geeks' \
+ -p 3306:3306 \
+ -d percona/percona-server
+
+
+
 # MikroORM
 
 
 
+## Inicialización
 
+Agregaremos unos cambios a nuestro diagrama
+
+<img src="img/3.png"/>
+
+Vamos a eliminar el character.repository y el repository.ts ni tampoco los archivos de conexión (en este md no lo puse a lo de mysql y mongodb)
+
+y vamos a quitar las dependencias en nuestro package.json
+
+```bash
+pnpm rm mysql2 mongoDB
+```
+Y agregaremos.  El core nos dara todas las funcionalidades basicas que provee el orm sin importar la base de datos que utilicemos.
+
+```bash
+pnpm add -E @mikro-orm/core
+```
+
+agregmos para mysql
+
+```bash
+pnpm add -E @mikro-orm/mysql
+```
+Reflectmetadata nos permite de forma casi automatica armar nuestras entidades sin tener que repetir las estructuras de las entidades en ninguna otra parte.
+
+```bash
+pnpm add -E reflect-metadata
+```
+
+Por ultimo para que sea mas amigable la sentencia de sql que nos muestra.
+
+```bash
+pnpm add -E @mikro-orm/sql-highlighter
+```
+
+## Configuración
+
+Para aceder a la base de datos primero vamos a crear en shared una carpeta db. DOnde crearemos un orm.ts en el cual pondremos nuestra configuración
 
 
 
