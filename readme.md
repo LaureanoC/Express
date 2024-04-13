@@ -515,6 +515,393 @@ app.use((_, res) => {
 
 # 03. Express MVC
 
+Distribuiremos el proyecto la siguiente manera.
+
+Cumpliendo con el single-responsability (archivo o clase con una sola responsabilidad) y combinando con vertical-slices, división de nuestra app en modulos o componentes que se encarguen de una parte de nuestra aplicación. En nuestro caso tenemos un CRUD de characters -> creamos una carpeta characters con los siguientes archivos. Donde entity era el character.ts anterior.
+
+<img src="img/2.png"/>
+
+El repository ts en general hace referencia al acceso a la base de datos. Nosotros en un futuro aplicaremos un ORM con un patrón llamado Data-Mapper.
+
+## Repository
+
+Creamos una carpeta llamada shared con un archivo repository.ts
+En repository.ts declararemos una interfaz que permitirá que todos los repositorios implementen los elementos que definiremos y que yo no tenga una implementación que se aleje del estandar que yo quiero.
+
+findAll devolverá o una lista o undefined luego lo reemplazaremos con una Promesa.
+findOne devolverá o un objeto generico T o undefined.
+...
+...
+
+Para findOne y delete voy a recibir un solo elemento donde se **exige** que el elemento tenga un **id**
+
+```ts
+export interface Repository<T> {
+
+    findAll(): T[] | undefined
+    findOne(item: {id: string}): T | undefined
+    add(item: T): T | undefined
+    update(item: T): T | undefined
+    delete(item: {id:string}): T | undefined
+
+}
+```
+
+Habiendo creado la interfaz vamos a crear nuestra clase que implementa la interfaz. La sanitización de la entrada no corresponde a esta capa. Esta solo es de acceso a datos.
+
+```ts
+import { Repository } from "../shared/repository.js"}
+import { Character } from "./character.entity.js"
+
+const characters = [
+    new Character(
+      'Darth Vader',
+      'Sith',
+      10,
+      100,
+      20,
+      10,
+      ['Lightsaber', 'Death Star'],
+      'a02b91bc-3769-4221-beb1-d7a3aeba7dad'
+    ),
+  ]
+
+
+
+export class CharacterRepository implements Repository<Character>{
+
+
+    public findAll(): Character[] | undefined {
+        return characters
+    }
+
+    public findOne(item: { id: string }): Character | undefined {
+        return characters.find((character) => character.id === item.id)
+      }
+
+    
+    public add(item: Character): Character | undefined {
+        characters.push(item)
+        return item
+    }
+
+    public update(item: Character): Character | undefined {
+        const characterIdx = characters.findIndex((character) => character.id === item.id)
+    
+        if (characterIdx !== -1) {
+          characters[characterIdx] = { ...characters[characterIdx], ...item }
+        }
+        return characters[characterIdx]
+      }
+
+      public delete(item: { id: string }): Character | undefined {
+        const characterIdx = characters.findIndex((character) => character.id === item.id)
+    
+        if (characterIdx !== -1) {
+          const deletedCharacters = characters[characterIdx]
+          characters.splice(characterIdx, 1)
+          return deletedCharacters
+        }
+      }
+
+}
+```
+
+Ahora realizaremos las modificaciones al app.ts eliminamos el array de characters y ponemos const repository = new CharacterRepository() obviamente lo importamos también, luego lo terminaremos moviendo pero para una primera etapa va.
+
+```ts
+import { CharacterRepository } from './character/character.repository.js'
+...
+...
+const repository = new CharacterRepository()
+...
+...
+```
+
+Luego en el get characters
+
+```ts
+app.get('/api/characters', (req, res) => {
+  res.json({ data: repository.findAll() })
+})
+```
+getOne
+```ts
+app.get('/api/characters/:id', (req, res) => {
+  const character = repository.findOne({ id:req.params.id })
+  if (!character) {
+    return res.status(404).send({ message: 'Character not found' })
+  }
+  res.json({ data: character })
+})
+```
+add
+
+```ts
+app.post('/api/characters', sanitizeCharacterInput, (req, res) => {
+  const input = req.body.sanitizedInput
+
+  const character = new Character(
+    input.name,
+    input.characterClass,
+    input.level,
+    input.hp,
+    input.mana,
+    input.attack,
+    input.items
+  )
+
+  repository.add(character)
+  return res.status(201).send({ message: 'Character created', data: character })
+})
+```
+
+put
+
+```ts
+app.put('/api/characters/:id', sanitizeCharacterInput, (req, res) => {
+
+  req.body.sanitizedInput.id = req.params.id
+  const character = repository.update(req.body.sanitizedInput)
+
+  if (!character) {
+    return res.status(404).send({ message: 'Character not found' })
+  }
+
+  return res.status(200).send({ message: 'Character updated successfully', data: character })
+})
+```
+
+delete
+
+```ts
+app.delete('/api/characters/:id', (req, res) => {
+  const id = req.params.id
+  const character = repository.delete({ id })
+
+  if (!character) {
+    res.status(404).send({ message: 'Character not found' })
+  } else {
+    res.status(200).send({ message: 'Character deleted successfully' })
+  }
+})
+```
+## Controller y routes
+
+Inicialmente comentaremos todo el app.algo y la sanitización la llevaremos al controlador.
+
+```ts
+import { Request, Response, NextFunction } from 'express'
+import { CharacterRepository } from './character.repository.js'
+import { Character } from './character.entity.js'
+
+const repository = new CharacterRepository()
+
+function sanitizeCharacterInput(req: Request, res: Response, next: NextFunction) {
+  req.body.sanitizedInput = {
+    name: req.body.name,
+    characterClass: req.body.characterClass,
+    level: req.body.level,
+    hp: req.body.hp,
+    mana: req.body.mana,
+    attack: req.body.attack,
+    items: req.body.items,
+  }
+  //Más validaciones aquí
+
+  Object.keys(req.body.sanitizedInput).forEach((key) => {
+    if (req.body.sanitizedInput[key] === undefined) {
+      delete req.body.sanitizedInput[key]
+    }
+  })
+  next()
+}
+
+function findAll(req: Request, res: Response) {
+  res.json({ data: repository.findAll() })
+}
+
+export { sanitizieCharacterInput, findAll}
+```
+
+Y en las rutas haremos una especie de indice por cada vertical-slice o modulo y para eso vamos a importar Router de express y también el sanitizeCharacterInput y el findAll
+
+```ts
+import { Router } from 'express'
+import { sanitizeCharacterInput, findAll } from './character.controller.js'
+
+export const characterRouter = Router()
+
+characterRouter.get('/', findAll)
+
+```
+
+y en el app.ts
+
+```ts
+import express from 'express'
+import { characterRouter } from './character/character.routes.js'
+
+const app = express()
+app.use(express.json())
+
+app.use('/api/characters', characterRouter)
+
+app.use((_, res) => {
+  return res.status(404).send({ message: 'Resource not found' })
+})
+
+app.listen(3000, () => {
+  console.log('Server runnning on http://localhost:3000/')
+})
+```
+
+Ahora vamos con el findOne, mismo procedimiento. En controller
+
+
+```ts
+function findOne(req: Request, res: Response) {
+  const id = req.params.id
+  const character = repository.findOne({ id })
+  if (!character) {
+    return res.status(404).send({ message: 'Character not found' })
+  }
+  res.json({ data: character })
+}
+
+export { sanitizeCharacterInput, findAll, findOne}
+```
+En routes
+```ts
+characterRouter.get('/:id', findOne)
+```
+
+Y lo mismo con el resto...
+
+Quedando el código así:
+
+app.ts
+```ts
+import express from 'express'
+import { characterRouter } from './character/character.routes.js'
+
+const app = express()
+app.use(express.json())
+
+app.use('/api/characters', characterRouter)
+
+app.use((_, res) => {
+  return res.status(404).send({ message: 'Resource not found' })
+})
+
+app.listen(3000, () => {
+  console.log('Server runnning on http://localhost:3000/')
+})
+```
+
+routes
+```ts
+import { Router } from 'express'
+import { sanitizeCharacterInput, findAll, findOne, add, update, remove } from './character.controller.js'
+
+export const characterRouter = Router()
+
+characterRouter.get('/', findAll)
+characterRouter.get('/:id', findOne)
+characterRouter.post('/', sanitizeCharacterInput, add)
+characterRouter.put('/:id', sanitizeCharacterInput, update)
+characterRouter.patch('/:id', sanitizeCharacterInput, update)
+characterRouter.delete('/:id', remove)
+```
+controller
+```ts
+import { Request, Response, NextFunction } from 'express'
+import { CharacterRepository } from './character.repository.js'
+import { Character } from './character.entity.js'
+
+const repository = new CharacterRepository()
+
+function sanitizeCharacterInput(req: Request, res: Response, next: NextFunction) {
+  req.body.sanitizedInput = {
+    name: req.body.name,
+    characterClass: req.body.characterClass,
+    level: req.body.level,
+    hp: req.body.hp,
+    mana: req.body.mana,
+    attack: req.body.attack,
+    items: req.body.items,
+  }
+  //Más validaciones aquí
+
+  Object.keys(req.body.sanitizedInput).forEach((key) => {
+    if (req.body.sanitizedInput[key] === undefined) {
+      delete req.body.sanitizedInput[key]
+    }
+  })
+  next()
+}
+
+function findAll(req: Request, res: Response) {
+  res.json({ data: repository.findAll() })
+}
+
+function findOne(req: Request, res: Response) {
+  const id = req.params.id
+  const character = repository.findOne({ id })
+  if (!character) {
+    return res.status(404).send({ message: 'Character not found' })
+  }
+  res.json({ data: character })
+}
+
+function add(req: Request, res: Response) {
+  const input = req.body.sanitizedInput
+
+  const characterInput = new Character(
+    input.name,
+    input.characterClass,
+    input.level,
+    input.hp,
+    input.mana,
+    input.attack,
+    input.items
+  )
+
+  const character = repository.add(characterInput)
+  return res.status(201).send({ message: 'Character created', data: character })
+}
+
+function update(req: Request, res: Response) {
+  req.body.sanitizedInput.id = req.params.id
+  const character = repository.update(req.body.sanitizedInput)
+
+  if (!character) {
+    return res.status(404).send({ message: 'Character not found' })
+  }
+
+  return res.status(200).send({ message: 'Character updated successfully', data: character })
+}
+
+function remove(req: Request, res: Response) {
+  const id = req.params.id
+  const character = repository.delete({ id })
+
+  if (!character) {
+    res.status(404).send({ message: 'Character not found' })
+  } else {
+    res.status(200).send({ message: 'Character deleted successfully' })
+  }
+}
+
+export { sanitizeCharacterInput, findAll, findOne, add, update, remove }
+```
+# MikroORM
+
+
+
+
+
+
 
 
 
