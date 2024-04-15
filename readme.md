@@ -933,15 +933,79 @@ docker run --name mongodb-dsw -v /home/adrian/docker-volumes/percona-mongodb-dsw
 ## percona-server-8-docker
 
 docker run --name ps8-dsw-h4g \
- -v /home/laureano/docker-volumes/ps8-dsw-h4g:/var/lib/mysql \
+ -v reemplazar-directorio-aqui:/var/lib/mysql \
  -e MYSQL_ROOT_HOST='%' \
  -e MYSQL_ALLOW_EMPTY_PASSWORD="yes" \
  -e MYSQL_PASSWORD="dsw" \
  -e MYSQL_USER="dsw" \
- -e MYSQL_DATABASE='heroclash4geeks' \
+ -e MYSQL_DATABASE='hc4gmo' \
  -p 3306:3306 \
  -d percona/percona-server
 
+
+## SQL Commands
+
+```sql
+create database if not exists hc4gmo;
+
+create user if not exists dsw@'%' identified by 'dsw';
+grant all on hc4gmo.* to dsw@'%';
+```
+
+# Proyecto
+
+## Introducción
+
+En este ejemplo vamos a desarrollar los CRUD (ABMC) utilizando una API REST con express y utilizando un ORM (object relational mapper) u ODM (object document mapper) para la persistencia. Cuando un mismo mapper sirve tanto para la persistencia en bases de datos relacionales como en document store se suele nombrar como OxM ya que permite mapear a más de uno.
+
+El OxM que utilizaremos es [MikroORM](https://mikro-orm.io/). Que tiene soporte para multiples bases de datos relacionales y también MongoDB.
+
+En particular para poder demostrar los beneficios de un ORM es necesario mostrar ocmo implementar relaciones 1aN y NaM por lo que agregaremos a nuestra app 2 clases más:
+
+Items y CharacterClass que dejarán de ser strings y serán entidades por derecho propio. Como se muestra en el diagrama de clases a continuación:
+
+## Class diagram
+
+```mermaid
+classDiagram
+direction BT
+
+class CharacterClass {
+    id: number | ObjectId
+    name: string
+    description: string
+    characters: Character[]
+}
+
+class Character {
+    id: number | ObjectId
+    name: string
+    characterClass: CharacterClass
+    level: number
+    hp: number
+    mana: number
+    attack: number
+    items: Items[]
+}
+
+class Item {
+    id: number | ObjectId
+    name: string
+    description: string
+    characters: Character[]
+}
+
+CharacterClass "1" -- "*" Character
+Item "*" -- "*" Character
+```
+
+## Lectura Adicional
+
+Basado en los patrones:
+
+- [Data Mapper](https://www.martinfowler.com/eaaCatalog/dataMapper.html),
+- [Unit of Work](https://mikro-orm.io/docs/unit-of-work)
+- [Identity Map](https://mikro-orm.io/docs/identity-map)
 
 
 # MikroORM
@@ -972,7 +1036,7 @@ agregmos para mysql
 ```bash
 pnpm add -E @mikro-orm/mysql
 ```
-Reflectmetadata nos permite de forma casi automatica armar nuestras entidades sin tener que repetir las estructuras de las entidades en ninguna otra parte.
+Reflect-metadata nos permite de forma casi automatica armar nuestras entidades sin tener que repetir las estructuras de las entidades en ninguna otra parte.
 
 ```bash
 pnpm add -E reflect-metadata
@@ -986,12 +1050,56 @@ pnpm add -E @mikro-orm/sql-highlighter
 
 ## Configuración
 
-Para aceder a la base de datos primero vamos a crear en shared una carpeta db. DOnde crearemos un orm.ts en el cual pondremos nuestra configuración
+Para aceder a la base de datos primero vamos a crear en shared una carpeta db. Donde crearemos un orm.ts en el cual pondremos nuestra configuración.
+Las entidades se pueden listar entidad por entidad en un array o de una forma mas comoda como está en el bloque de abajo
+
+dentro de la carpeta dist ** indica en cualquier subcarpeta y *.entity.js cualquier archivo que contenga entity.js
+
+La creación de la base de datos hay que hacerla con los comandos previos ya sea con el container docker o una ya creada en mysql.
+
+Luego con el schema generator vamos a generar el schema de la base de datos.
+
+```ts
+import { MikroORM } from '@mikro-orm/core'
+import { SqlHighlighter } from '@mikro-orm/sql-highlighter'
+
+export const orm = await MikroORM.init({
+  entities: ['dist/**/*.entity.js'],
+  entitiesTs: ['src/**/*.entity.ts'],
+  dbName: 'hc4gmo',
+  clientUrl: 'mysql://dsw:dsw@localhost:3306/hc4gmo',
+  highlighter: new SqlHighlighter(),
+  debug: true,
+  schemaGenerator: {
+    //never in production
+    disableForeignKeys: true,
+    createForeignKeyConstraints: true,
+    ignoreSchema: [],
+  },
+})
+
+export const syncSchema = async () => {
+    const generator = orm.getSchemaGenerator()
+    /*   
+    await generator.dropSchema()
+    await generator.createSchema()
+    */
+    await generator.updateSchema()
+  }
+```
+
+
+## Bootstraping
+
+En app.ts importamos reflect-metadata
+
+```ts
+import 'reflect-metadata'
+import { orm, syncSchema } from './shared/db/orm.ts'
 
 
 
-
-
+```
 
 
 
