@@ -1091,15 +1091,27 @@ export const syncSchema = async () => {
 
 ## Bootstraping
 
-En app.ts importamos reflect-metadata
+En app.ts importamos reflect-metadata.  El **em** es el entity manager, es una abstraccion que permite manejar todas las entidades de forma uniforme y desde un unico punto. Tambien mikroorm dispone de repositories sin embargo no lo vamos a utilizarlo ya que las llamadas son simples wrappers al entity manager.
 
 ```ts
 import 'reflect-metadata'
 import { orm, syncSchema } from './shared/db/orm.ts'
+import { RequestContext } from '@mikro-orm/core'
 
+const app = express()
+app.use(express.json())
+//luego de los middleware base 
 
+app.use((req, res, next)) =>{
+  RequestContext.create(orm.em, next)
+}
+//antes de las rutas y middleware de negocio
+
+await syncSchema() //never in production
 
 ```
+
+## Creación de entidades
 
 
 
